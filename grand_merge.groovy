@@ -30,19 +30,22 @@ import org.semanticweb.elk.reasoner.config.*
 def omim = [:]
 new File('phenotype_annotation.tab').text.split('\n').each {
   def fields = it.split('\t')
-  def omimId = fields[4]
-  def hpId = fields[3]
+  def omimId = fields[5]
+  def hpId = fields[4]
 
   if(!omim.containsKey(omimId)) {
     omim[omimId] = [
       'id': omimId,
       'dName': fields[2],
-      'phenotypes': []
+      'phenotypes': [],
+      'done': false
     ]
   }
 
   omim[omimId].phenotypes << hpId
 }
+
+println omim.keySet()
 
 // 2: OWLAPI config
 
@@ -63,7 +66,6 @@ config.setLoadAnnotationAxioms(true)
 println 'Loading' 
 def PNET_ORIGINAL = 'phenomenet.owl'
 def pnet = manager.loadOntologyFromOntologyDocument(new IRIDocumentSource(IRI.create(new File(PNET_ORIGINAL).toURI())), config)
-def oFactory = manager.getOWLDataFactory()
 
 def idCounter = 30000
 def IRI_PREFIX = "http://aber-owl.net/phenotype.owl#PHENO:"
@@ -77,8 +79,8 @@ oReasoner.precomputeInferences(InferenceType.CLASS_HIERARCHY)
 // 4: Get children of DOID diseases
 
 // some useful individuals ;)
-def diseaseClass = oFactory.getOWLClass(IRI.create("http://purl.obolibrary.org/obo/DOID_4"))
-def hasSymptom = oFactory.getOWLObjectProperty("http://purl.obolibrary.org/obo/doid#has_symptom")
+def diseaseClass = df.getOWLClass(IRI.create("http://purl.obolibrary.org/obo/DOID_4"))
+def hasSymptom = df.getOWLObjectProperty("http://purl.obolibrary.org/obo/doid#has_symptom")
 
 def diseasesAdded = []
 def phenotypesAdded = 0
@@ -99,14 +101,18 @@ oReasoner.getSubClasses(diseaseClass, false).each { cNode ->
       value = value.get().getLiteral()
 
       if(key == 'hasDbXref') {
-        def (dbName, dbId) = value.split(':')
-        if(dbName == 'OMIM' && omim.containsKey(dbId)) {
+        println 'Found ' + value
+        if(omim.containsKey(value)) {
           println 'Adding disease phenotypes!!'
+          omim[value].done = true
 
-          omim[dbId].phenotypes.each { hpId ->
+          omim[value].phenotypes.each { hpId ->
             def hpIRI = IRI.create("http://purl.obolibrary.org/obo/HP_"+hpId.split(':')[1])
-            def hpClass = oFactory.getOWLClass(hpIRI)
-            def newAssertion = df.getOWLObjectPropertyAssertionAxiom(hasSymptom, dClass, hpClass)
+            def hpClass = df.getOWLClass(hpIRI)
+
+            def symptomRestriction = df.getOWLObjectSomeValuesFrom(hasSymptom, hpClass)
+            OWLClassExpression anonClass = df.getOWLObjectIntersectionOf(diseaseClass, symptomRestriction)
+            def newAssertion = df.getOWLEquivalentClassesAxiom(dClass, anonClass)
 
             manager.applyChange(new AddAxiom(pnet, newAssertion))
 
@@ -126,3 +132,4 @@ File newPnetFile = new File("new_phenomenet.owl")
 manager.saveOntology(pnet, IRI.create(newPnetFile.toURI()))
 
 println "Got phenotype information for ${diseasesAdded.size()} diseases in DOID, adding a total of ${phenotypesAdded} phenotypes."
+println "OMIM coverage: " + omim.collect { k, v -> v.done }.size() + '/' + omim.size()
