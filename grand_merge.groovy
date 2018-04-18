@@ -111,8 +111,7 @@ oReasoner.getSubClasses(diseaseClass, false).each { cNode ->
             def hpClass = df.getOWLClass(hpIRI)
 
             def symptomRestriction = df.getOWLObjectSomeValuesFrom(hasSymptom, hpClass)
-            OWLClassExpression anonClass = df.getOWLObjectIntersectionOf(diseaseClass, symptomRestriction)
-            def newAssertion = df.getOWLEquivalentClassesAxiom(dClass, anonClass)
+            def newAssertion = df.getOWLSubClassOfAxiom(dClass, symptomRestriction)
 
             manager.applyChange(new AddAxiom(pnet, newAssertion))
 
