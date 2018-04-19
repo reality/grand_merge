@@ -28,6 +28,7 @@ import org.semanticweb.elk.reasoner.config.*
 
 // thing file
 def morbids = [:]
+def bestMatches = [:]
 new File('morbid.txt').text.split('\n').each { line ->
   line.tokenize('\t').eachWithIndex { code, idx ->
     if(idx == 0) { return; }
@@ -48,7 +49,7 @@ def config = new OWLOntologyLoaderConfiguration()
 config.setFollowRedirects(true)
 config.setLoadAnnotationAxioms(true)
 
-def O_FILE = 'doid.owl' // change to hp.owl for hp obvs
+def O_FILE = 'hp.owl' // change to hp.owl for hp obvs
 def ont = manager.loadOntologyFromOntologyDocument(new IRIDocumentSource(IRI.create(new File(O_FILE).toURI())), config)
 
 // Classify Ontology
@@ -57,8 +58,8 @@ println 'Reasoning'
 def oReasoner = reasonerFactory.createReasoner(ont, rConf)
 oReasoner.precomputeInferences(InferenceType.CLASS_HIERARCHY)
 
-def diseaseClass = df.getOWLClass(IRI.create("http://purl.obolibrary.org/obo/DOID_4"))
-//def diseaseClass = df.getOWLClass(IRI.create("http://purl.obolibrary.org/obo/HP_0000001"))
+//def diseaseClass = df.getOWLClass(IRI.create("http://purl.obolibrary.org/obo/DOID_4"))
+def diseaseClass = df.getOWLClass(IRI.create("http://purl.obolibrary.org/obo/HP_0000001"))
 
 oReasoner.getSubClasses(diseaseClass, false).each { cNode ->
   cNode.each { dClass ->
@@ -79,11 +80,16 @@ oReasoner.getSubClasses(diseaseClass, false).each { cNode ->
         def shortCode = code.tokenize('.')[0]
         if(morbids.containsKey(code) && !morbids[code].contains(dClass.getIRI().getFragment())) {
           morbids[code] << dClass.getIRI().getFragment()
-          println 'found 1'
         }
         if(morbids.containsKey(shortCode) && !morbids[shortCode].contains(dClass.getIRI().getFragment())) {
           morbids[shortCode] << dClass.getIRI().getFragment()
-          println 'found 1'
+        }
+
+        morbids.each { k, v ->
+          if(k.indexOf(code) == 0 && /*!morbids[k].find { it.size() > k.size() } &&*/ !morbids[k].contains(dClass.getIRI().getFragment())) {
+            morbids[k] << dClass.getIRI().getFragment()
+            println 'cool and good'
+          }
         }
       }
     }
@@ -91,4 +97,4 @@ oReasoner.getSubClasses(diseaseClass, false).each { cNode ->
 }
 def out = morbids.collect { k, v -> if(v.size() > 0) { k + '\t' + v.join(',') } }
 out.removeAll([null])
-new File('mappings.tsv').text = out.join('\n')
+new File('hpmappings.tsv').text = out.join('\n')
