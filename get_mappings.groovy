@@ -26,6 +26,13 @@ import org.semanticweb.owlapi.reasoner.*
 import org.semanticweb.elk.owlapi.*
 import org.semanticweb.elk.reasoner.config.*
 
+// mappings 
+def icd9to10 = [:]
+new File('2018_I9gem.txt').each { line ->
+  def (icd9, icd10, idk) = line.tokenize('\t')
+  icd9to10[icd9] = icd10
+}
+
 // thing file
 def morbids = [:]
 def bestMatches = [:]
@@ -33,6 +40,13 @@ new File('morbid.txt').text.split('\n').each { line ->
   line.tokenize('\t').eachWithIndex { code, idx ->
     if(idx == 0) { return; }
     code = code.replaceAll('"', '')
+    if(Character.isDigit(code.charAt(0))) {
+      println code
+    }
+    if(icd9to10.containsKey(code)) {
+      code = icd9to10[code]
+      println replace
+    }
     morbids[code] = []
   }
 }
